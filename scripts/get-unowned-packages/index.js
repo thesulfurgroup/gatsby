@@ -3,13 +3,14 @@ const PackageGraph = require(`@lerna/package-graph`)
 const filterPackages = require(`@lerna/filter-packages`)
 const util = require(`util`)
 const path = require(`path`)
-const { exec, execSync } = require(`child_process`)
+const { execFile, execFileSync } = require(`child_process`)
 
-const execP = util.promisify(exec)
+const execFileP = util.promisify(execFile)
 
 const getPackagesWithReadWriteAccess = async user => {
-  const cmd = `npm access ls-packages ${user}`
-  const { stdout } = await execP(cmd)
+  const { stdout } = await execFileP(`npm`, [`access`, `ls-packages`, user], {
+    shell: false,
+  })
   const permissions = JSON.parse(stdout)
   return Object.entries(permissions).reduce((lookup, [pkgName, access]) => {
     if (access === `read-write`) {
@@ -38,7 +39,11 @@ module.exports = function getUnownedPackages({
     // infer user from npm whoami
     // set registry because yarn run hijacks registry
     if (!user) {
-      user = await execP(`npm whoami --registry https://registry.npmjs.org`)
+      user = await execFileP(
+        `npm`,
+        [`whoami`, `--registry`, `https://registry.npmjs.org`],
+        { shell: false }
+      )
         .then(({ stdout }) => stdout.trim())
         .catch(() => process.exit(1))
     }
@@ -52,8 +57,11 @@ module.exports = function getUnownedPackages({
         }
 
         try {
-          return !execSync(`npm view ${pkg.name} version`, { stdio: `pipe` })
-            .stderr
+          execFileSync(`npm`, [`view`, pkg.name, `version`], {
+            stdio: `pipe`,
+            shell: false,
+          })
+          return true
         } catch (e) {
           return false
         }
