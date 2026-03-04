@@ -81,10 +81,7 @@ const createInitialGitCommit = async (rootPath, starterUrl) => {
 
 // Executes `npm install` or `yarn install` in rootPath.
 const install = async rootPath => {
-  const prevDir = process.cwd()
-
   report.info(`Installing packages...`)
-  process.chdir(rootPath)
 
   try {
     if (await shouldUseYarn()) {
