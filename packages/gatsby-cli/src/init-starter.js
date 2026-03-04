@@ -83,12 +83,16 @@ const createInitialGitCommit = async (rootPath, starterUrl) => {
 const install = async rootPath => {
   report.info(`Installing packages...`)
 
-  if (await shouldUseYarn()) {
-    await fs.remove(`package-lock.json`)
-    await spawn(`yarnpkg`, [], { cwd: rootPath })
-  } else {
-    await fs.remove(`yarn.lock`)
-    await spawn(`npm`, [`install`], { cwd: rootPath })
+  try {
+    if (await shouldUseYarn()) {
+      await fs.remove(`package-lock.json`)
+      await spawn(`yarnpkg`)
+    } else {
+      await fs.remove(`yarn.lock`)
+      await spawn(`npm`, [`install`])
+    }
+  } finally {
+    process.chdir(prevDir)
   }
 }
 
@@ -141,14 +145,10 @@ const clone = async (hostInfo: any, rootPath: string) => {
 
   report.info(`Creating new site from git: ${url}`)
 
-  await spawn(`git`, [
-    `clone`,
-    ...branchArgs,
-    `--single-branch`,
-    `--`,
-    url,
-    rootPath,
-  ])
+  await spawn(
+    `git`,
+    [`clone`, ...branchArgs, `--single-branch`, url, rootPath]
+  )
 
   report.success(`Created starter directory layout`)
 
