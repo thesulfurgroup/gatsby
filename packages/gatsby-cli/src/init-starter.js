@@ -1,5 +1,5 @@
 /* @flow */
-const { execSync } = require(`child_process`)
+const { execFileSync } = require(`child_process`)
 const execa = require(`execa`)
 const hostedGitInfo = require(`hosted-git-info`)
 const fs = require(`fs-extra`)
@@ -15,17 +15,15 @@ const {
   promptPackageManager,
 } = require(`./util/configstore`)
 const isTTY = require(`./util/is-tty`)
-const spawn = (cmd: string, options: any) => {
-  const [file, ...args] = cmd.split(/\s+/)
-  return execa(file, args, { stdio: `inherit`, ...options })
-}
+const spawn = (file: string, args: Array<string> = [], options: any = {}) =>
+  execa(file, args, { stdio: `inherit`, ...options })
 
 // Checks the existence of yarn package and user preference if it exists
 // We use yarnpkg instead of yarn to avoid conflict with Hadoop yarn
 // Refer to https://github.com/yarnpkg/yarn/issues/673
 const shouldUseYarn = async () => {
   try {
-    execSync(`yarnpkg --version`, { stdio: `ignore` })
+    execFileSync(`yarnpkg`, [`--version`], { stdio: `ignore` })
 
     let packageManager = getPackageManager()
     if (!packageManager) {
@@ -49,7 +47,7 @@ const shouldUseYarn = async () => {
 const gitInit = async rootPath => {
   report.info(`Initialising git in ${rootPath}`)
 
-  return await spawn(`git init`, { cwd: rootPath })
+  return await spawn(`git`, [`init`], { cwd: rootPath })
 }
 
 // Create a .gitignore file if it is missing in the new directory
@@ -69,31 +67,28 @@ const maybeCreateGitIgnore = async rootPath => {
 const createInitialGitCommit = async (rootPath, starterUrl) => {
   report.info(`Create initial git commit in ${rootPath}`)
 
-  await spawn(`git add -A`, { cwd: rootPath })
-  // use execSync instead of spawn to handle git clients using
+  await spawn(`git`, [`add`, `-A`], { cwd: rootPath })
+  // use execFileSync instead of spawn to handle git clients using
   // pgp signatures (with password)
-  execSync(`git commit -m "Initial commit from gatsby: (${starterUrl})"`, {
-    cwd: rootPath,
-  })
+  execFileSync(
+    `git`,
+    [`commit`, `-m`, `Initial commit from gatsby: (${starterUrl})`],
+    {
+      cwd: rootPath,
+    }
+  )
 }
 
 // Executes `npm install` or `yarn install` in rootPath.
 const install = async rootPath => {
-  const prevDir = process.cwd()
-
   report.info(`Installing packages...`)
-  process.chdir(rootPath)
 
-  try {
-    if (await shouldUseYarn()) {
-      await fs.remove(`package-lock.json`)
-      await spawn(`yarnpkg`)
-    } else {
-      await fs.remove(`yarn.lock`)
-      await spawn(`npm install`)
-    }
-  } finally {
-    process.chdir(prevDir)
+  if (await shouldUseYarn()) {
+    await fs.remove(`package-lock.json`)
+    await spawn(`yarnpkg`, [], { cwd: rootPath })
+  } else {
+    await fs.remove(`yarn.lock`)
+    await spawn(`npm`, [`install`], { cwd: rootPath })
   }
 }
 
@@ -142,11 +137,18 @@ const clone = async (hostInfo: any, rootPath: string) => {
     url = hostInfo.https({ noCommittish: true, noGitPlus: true })
   }
 
-  const branch = hostInfo.committish ? `-b ${hostInfo.committish}` : ``
+  const branchArgs = hostInfo.committish ? [`-b`, hostInfo.committish] : []
 
   report.info(`Creating new site from git: ${url}`)
 
-  await spawn(`git clone ${branch} ${url} ${rootPath} --single-branch`)
+  await spawn(`git`, [
+    `clone`,
+    ...branchArgs,
+    `--single-branch`,
+    `--`,
+    url,
+    rootPath,
+  ])
 
   report.success(`Created starter directory layout`)
 
